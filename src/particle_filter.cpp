@@ -20,18 +20,56 @@
 using namespace std;
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
-	// TODO: Set the number of particles. Initialize all particles to first position (based on estimates of 
-	//   x, y, theta and their uncertainties from GPS) and all weights to 1. 
-	// Add random Gaussian noise to each particle.
-	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
+  // TODO: Set the number of particles. Initialize all particles to first position (based on estimates of 
+  //   x, y, theta and their uncertainties from GPS) and all weights to 1. 
+  // Add random Gaussian noise to each particle.
+  // NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 
+  num_particles = 200;
+  is_initialized = true;
+  
+  while(!particles.empty()){
+    particles.pop_back();
+  }
+
+  default_random_engine generator;
+  normal_distribution<double> dist_x(x, std[0]);
+  normal_distribution<double> dist_y(y, std[1]);
+  normal_distribution<double> dist_theta(theta, std[2]);
+
+  for (int i=0; i<num_particles; ++i){
+    Particle p;
+    p.id = i;
+    p.x = dist_x(generator);
+    p.y = dist_y(generator);
+    p.theta = dist_theta(generator);
+    p.weight = 1;
+    particles.push_back(p);
+  }
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], double velocity, double yaw_rate) {
-	// TODO: Add measurements to each particle and add random Gaussian noise.
-	// NOTE: When adding noise you may find std::normal_distribution and std::default_random_engine useful.
-	//  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
-	//  http://www.cplusplus.com/reference/random/default_random_engine/
+  // TODO: Add measurements to each particle and add random Gaussian noise.
+  // NOTE: When adding noise you may find std::normal_distribution and std::default_random_engine useful.
+  //  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
+  //  http://www.cplusplus.com/reference/random/default_random_engine/
+
+  default_random_engine generator;
+
+  double distance = velocity*delta_t;
+    for(std::vector<Particle>::iterator it = particles.begin(); it != particles.end(); ++it) {
+      double new_theta = it->theta + yaw_rate * delta_t;
+      double new_x = it->x + (velocity/yaw_rate) * (sin(new_theta) - sin(it->theta));
+      double new_y = it->y + (velocity/yaw_rate) * (cos(it->theta) - cos(new_theta));
+
+      normal_distribution<double> dist_x(new_x, std_pos[0]);
+      normal_distribution<double> dist_y(new_y, std_pos[1]);
+      normal_distribution<double> dist_theta(new_theta, std_pos[2]);
+
+      it->x = dist_x(generator);
+      it->y = dist_y(generator);
+      it->theta = dist_theta(generator);
+    }
 
 }
 
