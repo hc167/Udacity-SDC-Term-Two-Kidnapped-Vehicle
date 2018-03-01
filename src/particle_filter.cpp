@@ -1,8 +1,8 @@
 /*
  * particle_filter.cpp
  *
- *  Created on: Dec 12, 2016
- *      Author: Tiffany Huang
+ *  Created on: March 1, 2018
+ *      Author: Hiu Chan
  */
 
 #include <random>
@@ -25,7 +25,10 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
   // Add random Gaussian noise to each particle.
   // NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 
-  num_particles = 1;
+  // I tried a few different number for the number of particles and even 5 will pass the project (3 will fail, I did not try 4.). However, look like the larger it is
+  // The smaller the errors. For 10, I got x = 0.154 and y = 0.147, which is not bad. If I put 70, my error was down to about 0.11. Not sure it is worth it for the
+  // this kind of improvement with more computation resource waste.
+  num_particles = 10;
   is_initialized = true;
   
   particles.clear();
@@ -54,29 +57,21 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
   default_random_engine generator;
 
-  cout<<"incoming velocity: and delta: "<<velocity<<"  "<<delta_t<<endl;
-
   double distance = velocity*delta_t;
   for(std::vector<Particle>::iterator it = particles.begin(); it != particles.end(); ++it) {
     double new_theta;
     double new_x;
     double new_y;
 
-    if (yaw_rate > 1 || yaw_rate < -1){
-
-      cout<<"yaw rate normal ++++++"<<yaw_rate<<"\n"<<endl;
-
+    if (fabs(yaw_rate) != 0){
       new_theta = it->theta + yaw_rate * delta_t;
       new_x = it->x + (velocity/yaw_rate) * (sin(new_theta) - sin(it->theta));
       new_y = it->y + (velocity/yaw_rate) * (cos(it->theta) - cos(new_theta));
     }
     else{ // if yaw_rate is zero, just do the regular tri-geometry since the car is moving at a straight line
-
-      cout<<"yaw rate too small ++++++"<<yaw_rate<<"\n"<<endl;
-
       new_theta = it->theta;
-      new_x = it->x ;//+ (velocity*delta_t) * cos(it->theta);
-      new_y = it->y ;//+ (velocity*delta_t) * sin(it->theta);
+      new_x = it->x + (velocity*delta_t) * cos(it->theta);
+      new_y = it->y + (velocity*delta_t) * sin(it->theta);
     }
 
     normal_distribution<double> dist_x(new_x, std_pos[0]);
@@ -94,6 +89,9 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 	//   observed measurement to this particular landmark.
 	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
 	//   implement this method and use it as a helper during the updateWeights phase.
+
+
+  // Don't really think I need this function but keep it here anyway.
 
 }
 
@@ -154,7 +152,6 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
       it->sense_x.push_back(map_x);
       it->sense_y.push_back(map_y);
     }
-
     weights.push_back(it->weight);
   }  
 }
@@ -164,9 +161,7 @@ void ParticleFilter::resample() {
   // NOTE: You may find std::discrete_distribution helpful here.
   //   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
 
-  // particle.weight is the weight vector 
   vector<Particle> resampled_particles;
-
 
   default_random_engine gen;
   discrete_distribution<int> weight_distribution(weights.begin(), weights.end()); 
@@ -174,6 +169,8 @@ void ParticleFilter::resample() {
   for (int i = 0; i < num_particles; i++) {
     resampled_particles.push_back(particles[weight_distribution(gen)]);
   }
+
+  particles = resampled_particles;
 }
 
 Particle ParticleFilter::SetAssociations(Particle& particle, const std::vector<int>& associations, 
