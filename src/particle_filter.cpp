@@ -25,7 +25,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
   // Add random Gaussian noise to each particle.
   // NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 
-  num_particles = 200;
+  num_particles = 1;
   is_initialized = true;
   
   particles.clear();
@@ -54,12 +54,31 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
   default_random_engine generator;
 
+  cout<<"incoming velocity: and delta: "<<velocity<<"  "<<delta_t<<endl;
+
   double distance = velocity*delta_t;
   for(std::vector<Particle>::iterator it = particles.begin(); it != particles.end(); ++it) {
-    double new_theta = it->theta + yaw_rate * delta_t;
-    double new_x = it->x + (velocity/yaw_rate) * (sin(new_theta) - sin(it->theta));
-    double new_y = it->y + (velocity/yaw_rate) * (cos(it->theta) - cos(new_theta));
-    
+    double new_theta;
+    double new_x;
+    double new_y;
+
+    if (yaw_rate > 1 || yaw_rate < -1){
+
+      cout<<"yaw rate normal ++++++"<<yaw_rate<<"\n"<<endl;
+
+      new_theta = it->theta + yaw_rate * delta_t;
+      new_x = it->x + (velocity/yaw_rate) * (sin(new_theta) - sin(it->theta));
+      new_y = it->y + (velocity/yaw_rate) * (cos(it->theta) - cos(new_theta));
+    }
+    else{ // if yaw_rate is zero, just do the regular tri-geometry since the car is moving at a straight line
+
+      cout<<"yaw rate too small ++++++"<<yaw_rate<<"\n"<<endl;
+
+      new_theta = it->theta;
+      new_x = it->x ;//+ (velocity*delta_t) * cos(it->theta);
+      new_y = it->y ;//+ (velocity*delta_t) * sin(it->theta);
+    }
+
     normal_distribution<double> dist_x(new_x, std_pos[0]);
     normal_distribution<double> dist_y(new_y, std_pos[1]);
     normal_distribution<double> dist_theta(new_theta, std_pos[2]);
@@ -91,16 +110,18 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
   //   3.33
   //   http://planning.cs.uiuc.edu/node99.html
 
-	double gau_front = 2 * M_PI * std_landmark[0] * std_landmark[1] ;
-	gau_front = 1/gau_front;
-	
+  double gau_front = 2 * M_PI * std_landmark[0] * std_landmark[1] ;
+  gau_front = 1/gau_front;
+
+  weights.clear();
+
   // loop through each particle first
   for(std::vector<Particle>::iterator it = particles.begin(); it != particles.end(); ++it) {
     
     it->associations.clear();
     it->sense_x.clear();
     it->sense_y.clear();
-	it->weight = 1;
+    it->weight = 1;
 
     // for each particle, we check the observed landmarks and convert to the map coordiate.
     for (std::vector<LandmarkObs>::const_iterator lm_it = observations.begin(); lm_it != observations.end(); ++lm_it) {      
@@ -112,7 +133,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
       int asso = 0;
       double distance = 999999999999999;
-	    double mu_x , mu_y;
+      double mu_x , mu_y;
 
       // For each observation, we find the association of the landmark on the map base on the smallest distance.
       for (std::vector<Map::single_landmark_s>::const_iterator map_it = map_landmarks.landmark_list.begin(); map_it != map_landmarks.landmark_list.end(); ++map_it){
@@ -120,27 +141,39 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	if (d  < distance){
 	  distance = d;
 	  asso = map_it->id_i;
-		mu_x = map_it->x_f;
-		mu_y = map_it->y_f;		
+	  mu_x = map_it->x_f;
+	  mu_y = map_it->y_f;		
 	}
       }
-	    double exponent = ((mu_x - map_x)*(mu_x - map_x)/(2*std_landmark[0]*std_landmark[0]) 
-		    + ((mu_y - map_y)*(mu_y - map_y))/(2*std_landmark[1]*std_landmark[1]);
-		exponent = -exponent;
-	    
-	    it->weight *= gau_front * exp(exponent);
+      double exponent = ((mu_x - map_x)*(mu_x - map_x))/(2*std_landmark[0]*std_landmark[0]) 
+			 + ((mu_y - map_y)*(mu_y - map_y))/(2*std_landmark[1]*std_landmark[1]);
+      exponent = -exponent;
+      it->weight *= gau_front * exp(exponent);
+
       it->associations.push_back(asso);
       it->sense_x.push_back(map_x);
       it->sense_y.push_back(map_y);
     }
+
+    weights.push_back(it->weight);
   }  
 }
 
 void ParticleFilter::resample() {
-	// TODO: Resample particles with replacement with probability proportional to their weight. 
-	// NOTE: You may find std::discrete_distribution helpful here.
-	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
+  // TODO: Resample particles with replacement with probability proportional to their weight. 
+  // NOTE: You may find std::discrete_distribution helpful here.
+  //   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
 
+  // particle.weight is the weight vector 
+  vector<Particle> resampled_particles;
+
+
+  default_random_engine gen;
+  discrete_distribution<int> weight_distribution(weights.begin(), weights.end()); 
+
+  for (int i = 0; i < num_particles; i++) {
+    resampled_particles.push_back(particles[weight_distribution(gen)]);
+  }
 }
 
 Particle ParticleFilter::SetAssociations(Particle& particle, const std::vector<int>& associations, 
